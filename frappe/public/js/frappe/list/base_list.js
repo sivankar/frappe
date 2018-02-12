@@ -22,14 +22,7 @@ frappe.views.BaseList = class BaseList {
 			this.setup_page,
 			this.setup_page_head,
 			this.setup_side_bar,
-			this.setup_list_wrapper,
-			this.setup_filter_area,
-			this.setup_sort_selector,
-			this.setup_result_area,
-			this.setup_no_result_area,
-			this.setup_freeze_area,
-			this.setup_paging_area,
-			this.setup_footnote_area,
+			this.setup_main_section,
 			this.setup_view,
 		].map(fn => fn.bind(this));
 
@@ -53,6 +46,7 @@ frappe.views.BaseList = class BaseList {
 		this.can_delete = frappe.model.can_delete(this.doctype);
 		this.can_write = frappe.model.can_write(this.doctype);
 
+		this.fields = [];
 		this.filters = [];
 		this.order_by = 'modified desc';
 
@@ -76,13 +70,9 @@ frappe.views.BaseList = class BaseList {
 	}
 
 	set_fields() {
-		this._fields = [];
-
 		let fields = [].concat(
 			frappe.model.std_fields_list,
-			this.get_fields_in_list_view(),
-			[this.meta.title_field, this.meta.image_field],
-			(this.settings.add_fields || [])
+			this.meta.title_field
 		);
 
 		fields.forEach(f => this._add_field(f));
@@ -105,16 +95,14 @@ frappe.views.BaseList = class BaseList {
 
 	build_fields() {
 		// fill in missing doctype
-		this._fields = this._fields.map(f => {
+		this.fields = this.fields.map(f => {
 			if (typeof f === 'string') {
 				f = [f, this.doctype];
 			}
 			return f;
 		});
 		//de-dup
-		this._fields = this._fields.uniqBy(f => f[0] + f[1]);
-		// build this.fields
-		this.fields = this._fields.map(f => frappe.model.get_full_column_name(f[0], f[1]));
+		this.fields = this.fields.uniqBy(f => f[0] + f[1]);
 	}
 
 	_add_field(fieldname) {
@@ -129,13 +117,14 @@ frappe.views.BaseList = class BaseList {
 		}
 
 		const is_valid_field = frappe.model.std_fields_list.includes(fieldname)
-			|| frappe.meta.has_field(doctype, fieldname);
+			|| frappe.meta.has_field(doctype, fieldname)
+			|| fieldname === '_seen';
 
 		if (!is_valid_field) {
 			return;
 		}
 
-		this._fields.push([fieldname, doctype]);
+		this.fields.push([fieldname, doctype]);
 	}
 
 	set_stats() {
@@ -196,6 +185,11 @@ frappe.views.BaseList = class BaseList {
 			page: this.page,
 			list_view: this
 		});
+	}
+
+	toggle_side_bar() {
+		this.list_sidebar.parent.toggleClass('hide');
+		this.page.current_view.find('.layout-main-section-wrapper').toggleClass('col-md-10 col-md-12');
 	}
 
 	setup_main_section() {
@@ -304,7 +298,8 @@ frappe.views.BaseList = class BaseList {
 	}
 
 	get_fields() {
-		return this.fields;
+		// convert [fieldname, Doctype] => tabDoctype.fieldname
+		return this.fields.map(f => frappe.model.get_full_column_name(f[0], f[1]));
 	}
 
 	setup_view() {
@@ -348,7 +343,7 @@ frappe.views.BaseList = class BaseList {
 
 	prepare_data(r) {
 		let data = r.message || {};
-		data = frappe.utils.dict(data.keys, data.values);
+		data = !Array.isArray(data) ? frappe.utils.dict(data.keys, data.values) : data;
 
 		if (this.start === 0) {
 			this.data = data;
@@ -444,14 +439,14 @@ class FilterArea {
 		});
 
 		const { non_standard_filters, promise } = this.set_standard_filter(filters);
-		if (non_standard_filters.length === 0) {
-			return promise;
-		}
 
 		return promise
-			.then(() => this.filter_list.add_filters(non_standard_filters))
 			.then(() => {
-				if (refresh) return this.list_view.refresh();
+				return non_standard_filters.length > 0 &&
+					this.filter_list.add_filters(non_standard_filters);
+			})
+			.then(() => {
+				refresh && this.list_view.refresh();
 			});
 	}
 
@@ -475,10 +470,6 @@ class FilterArea {
 		// check in filter area
 		if (!exists) {
 			exists = this.filter_list.filter_exists(f);
-		}
-
-		if (exists) {
-			frappe.show_alert(__('Filter already exists.'));
 		}
 
 		return exists;
@@ -558,6 +549,14 @@ class FilterArea {
 				onchange: () => this.refresh_list_view()
 			}
 		];
+
+		if(this.list_view.custom_filter_configs) {
+			this.list_view.custom_filter_configs.forEach(config => {
+				config.onchange = () => this.refresh_list_view();
+			})
+
+			fields = fields.concat(this.list_view.custom_filter_configs);
+		}
 
 		const doctype_fields = this.list_view.meta.fields;
 

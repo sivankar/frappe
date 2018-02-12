@@ -59,6 +59,18 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 		this.patch_refresh_and_load_lib();
 	}
 
+	set_fields() {
+		let fields = [].concat(
+			frappe.model.std_fields_list,
+			this.get_fields_in_list_view(),
+			[this.meta.title_field, this.meta.image_field],
+			(this.settings.add_fields || []),
+			this.meta.track_seen ? '_seen' : null
+		);
+
+		fields.forEach(f => this._add_field(f));
+	}
+
 	patch_refresh_and_load_lib() {
 		// throttle refresh for 1s
 		this.refresh = this.refresh.bind(this);
@@ -233,7 +245,6 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 		this.settings.before_render && this.settings.before_render();
 		frappe.model.user_settings.save(this.doctype, 'last_view', this.view_name);
 		this.save_view_user_settings({
-			fields: this._fields,
 			filters: this.filter_area.get(),
 			order_by: this.sort_selector.get_sql_string()
 		});
@@ -527,7 +538,7 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 			'liked-by' : 'text-extra-muted not-liked';
 
 		const seen = JSON.parse(doc._seen || '[]')
-			.includes(user) ? 'seen' : '';
+			.includes(user) ? '' : 'bold';
 
 		let subject_html = `
 			<input class="level-item list-row-checkbox hidden-xs" type="checkbox" data-name="${doc.name}">
@@ -815,6 +826,12 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 				standard: true
 			});
 		}
+
+		items.push({
+			label: __('Toggle Sidebar'),
+			action: () => this.toggle_side_bar(),
+			standard: true
+		});
 
 		// utility
 		const bulk_assignment = () => {

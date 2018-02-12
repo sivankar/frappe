@@ -18,7 +18,6 @@ import frappe.utils.help
 
 def migrate(verbose=True, rebuild_website=False):
 	'''Migrate all apps to the latest version, will:
-
 	- run before migrate hooks
 	- run patches
 	- sync doctypes (schema)
