@@ -11,8 +11,14 @@ import frappe.utils
 from frappe.utils import now, global_date_format, format_time
 from frappe.utils.xlsxutils import make_xlsx
 from frappe.utils.csvutils import to_csv
+from frappe import _dict
+
+conf = _dict(frappe.get_site_config())
 
 max_reports_per_user = 3
+if conf.max_reports_per_user:
+	max_reports_per_user = conf.max_reports_per_user
+
 
 class AutoEmailReport(Document):
 	def autoname(self):
