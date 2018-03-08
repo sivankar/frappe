@@ -65,8 +65,14 @@ frappe.ui.form.on('Data Import', {
 			frm.page.set_primary_action(__("Start Import"), function() {
 				frappe.call({
 					method: "frappe.core.doctype.data_import.data_import.import_data",
+					freeze: true,
+					freeze_message: "progressing",
 					args: {
 						data_import: frm.doc.name
+					},
+					callback : function(res){
+						console.log('-------------res-----------', res, frm, frm.refresh);
+						frm.refresh()
 					}
 				});
 			}).addClass('btn btn-primary');
