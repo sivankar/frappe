@@ -10,7 +10,7 @@ Example:
 
 	meta = frappe.get_meta('User')
 	if meta.has_field('first_name'):
-		print "DocType" table has field "first_name"
+		print("DocType" table has field "first_name")
 
 
 '''
@@ -228,6 +228,15 @@ class Meta(Document):
 			title_field = 'name'
 
 		return title_field
+
+	def get_translatable_fields(self):
+		'''Return all fields that are translation enabled'''
+		return [d.fieldname for d in self.fields if d.translatable]
+
+	def is_translatable(self, fieldname):
+		'''Return true of false given a field'''
+		field = self.get_field(fieldname)
+		return field and field.translatable
 
 	def process(self):
 		# don't process for special doctypes

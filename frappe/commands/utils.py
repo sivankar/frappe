@@ -314,7 +314,8 @@ def mariadb(context):
 		'-h', frappe.conf.db_host or "localhost",
 		'-D', frappe.conf.db_name,
 		'-R', '{site}> '.format(site = site),
-		'--auto-vertical-output'
+		'--auto-vertical-output',
+		'--warn'
 	]
 
 	os.execv(mysql, args)
@@ -328,7 +329,7 @@ def console(context):
 	frappe.connect()
 	frappe.local.lang = frappe.db.get_default("lang")
 	import IPython
-	IPython.embed()
+	IPython.embed(disable_banner = True)
 
 @click.command('run-tests')
 @click.option('--app', help="For App")

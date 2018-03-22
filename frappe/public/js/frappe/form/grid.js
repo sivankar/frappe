@@ -234,7 +234,7 @@ frappe.ui.form.Grid = Class.extend({
 			this.wrapper.find(".grid-footer").toggle(true);
 
 			// show, hide buttons to add rows
-			if(this.cannot_add_rows) {
+			if(this.cannot_add_rows || (this.df && this.df.cannot_add_rows)) {
 				// add 'hide' to buttons
 				this.wrapper.find(".grid-add-row, .grid-add-multiple-rows")
 					.addClass('hide');
@@ -509,9 +509,9 @@ frappe.ui.form.Grid = Class.extend({
 					}
 					df.colsize = colsize;
 				}
-				
+
 				// attach formatter on refresh
-				if (df.fieldtype == 'Link' && !df.formatter) {
+				if (df.fieldtype == 'Link' && !df.formatter && frappe.meta.docfield_map[df.parent]) {
 					const docfield = frappe.meta.docfield_map[df.parent][df.fieldname];
 					if (docfield && docfield.formatter) {
 						df.formatter = docfield.formatter;

@@ -1,11 +1,14 @@
 /**
  * frappe.views.ReportView
  */
+import DataTable from 'frappe-datatable';
+
 frappe.provide('frappe.views');
 
 frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 	setup_defaults() {
 		super.setup_defaults();
+		this.view_name = 'Report';
 		this.page_title = __('Report:') + ' ' + this.page_title;
 		this.menu_items = this.report_menu_items();
 
@@ -32,6 +35,7 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 
 	setup_view() {
 		this.setup_columns();
+		this.bind_charts_button();
 	}
 
 	setup_result_area() {
@@ -141,11 +145,9 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 
 	setup_datatable(values) {
 		this.datatable = new DataTable(this.$datatable_wrapper[0], {
+			columns: this.columns,
 			data: this.get_data(values),
-			enableClusterize: true,
-			addCheckbox: this.can_delete,
-			takeAvailableSpace: true,
-			editing: this.get_editing_object.bind(this),
+			getEditor: this.get_editing_object.bind(this),
 			events: {
 				onRemoveColumn: (column) => {
 					this.remove_column_from_datatable(column);
@@ -223,92 +225,177 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 		});
 	}
 
+	bind_charts_button() {
+		this.list_sidebar.sidebar.find('.charts-menu').removeClass('hide');
+		this.list_sidebar.sidebar.on('click', '.toggle-charts', (e) => {
+			e.preventDefault();
+			this.toggle_charts();
+		});
+		this.list_sidebar.sidebar.on('click', '.configure-charts', (e) => {
+			e.preventDefault();
+			this.get_chart_data().then(() => this.refresh_charts());
+		});
+		this.refresh_charts_sidebar_button();
+	}
+
+	refresh_charts_sidebar_button() {
+		// show configure charts button if charts is shown
+		const $configure_btn = this.list_sidebar.sidebar.find('.configure-charts');
+		const charts_visible = this.chart && !this.$charts_wrapper.hasClass('hidden');
+
+		if (charts_visible) {
+			$configure_btn.removeClass('hidden');
+		} else {
+			$configure_btn.addClass('hidden');
+		}
+	}
+
 	toggle_charts() {
 		if (!this.chart) {
 			this.setup_charts();
 			return;
 		}
 		this.$charts_wrapper.toggleClass('hidden');
-		this.chart.refresh();
+
+		if (!this.$charts_wrapper.hasClass('hidden')) {
+			this.chart.refresh();
+		}
+
+		this.refresh_charts_sidebar_button();
 	}
 
 	setup_charts() {
 		this.get_chart_data()
 			.then(args => {
-				this.chart_args = args;
 				let data = {
-					labels: this.data.map(d => d.name),
-					datasets: [ args.dataset ]
-				};
-				const df = frappe.meta.get_docfield('Task', args.field);
-				const get_doc = (value) => {
-					return this.data.find(d => {
-						return d[args.field] === value;
-					});
+					labels: args.labels,
+					datasets: args.datasets
 				};
 
-				this.chart = new Chart({
-					parent: this.$charts_wrapper[0],
+				this.last_chart_type = args.chart_type;
+
+				const get_df = (field) => frappe.meta.get_docfield(this.doctype, field);
+				const get_doc = (value, field) => this.data.find(d => d[field] === value);
+
+				this.chart = new Chart(this.$charts_wrapper[0], {
 					title: __("{0} Chart", [this.doctype]),
 					data: data,
-					type: 'bar', // or 'line', 'scatter', 'pie', 'percentage'
+					type: args.chart_type, // 'bar', 'line', 'scatter', 'pie', 'percentage'
 					height: 150,
-					colors: ['violet', 'blue'],
+					colors: ['violet', 'light-blue', 'orange', 'red'],
 
-					format_tooltip_x: d => (d + '').toUpperCase(),
-					format_tooltip_y: value => frappe.format(value, df, { always_show_decimals: true, inline: true }, get_doc(value))
+					format_tooltip_x: value => value.doc.name,
+					format_tooltip_y:
+						value => frappe.format(value, get_df(value.field), { always_show_decimals: true, inline: true }, get_doc(value.doc))
 				});
+
+				this.refresh_charts_sidebar_button();
 			});
 	}
 
 	refresh_charts() {
 		if (!this.chart) return;
-		const new_dataset = {
-			label: this.chart_args.field,
-			values: this.data.map(d => d[this.chart_args.field])
-		};
-		const labels = this.data.map(d => d.name);
-		this.chart.update_values([new_dataset], labels);
+		const { x_field, y_fields, chart_type } = this.chart_args;
+		const args = this.get_chart_args(x_field, y_fields, chart_type);
+		this.chart.update_values(args.datasets, args.labels);
+		this.chart.refresh();
+
+		if (args.chart_type !== this.last_chart_type) {
+			this.chart.get_different_chart(args.chart_type);
+		}
 	}
 
 	get_chart_data() {
 		return new Promise(resolve => {
-			// const x_fields = [];
 			const cur_list_fields = this.fields.map(f => f[0]);
+			const x_fields = this.meta.fields.filter(df =>
+				!df.hidden && cur_list_fields.includes(df.fieldname)
+			).map(df => df.fieldname);
 			const y_fields = this.meta.fields.filter(df =>
 				!df.hidden && frappe.model.is_numeric_field(df)
 				&& cur_list_fields.includes(df.fieldname)
 			).map(df => df.fieldname);
 
+			const defaults = this.chart_args || {};
+
 			const dialog = new frappe.ui.Dialog({
 				title: __('Configure Chart'),
 				fields: [
 					{
-						label: __('Y Axis Field'),
+						label: __('X Axis Field'),
 						fieldtype: 'Autocomplete',
-						fieldname: 'y_axis',
+						fieldname: 'x_axis',
+						options: x_fields,
+						default: defaults.x_field
+					},
+					{
+						label: __('Y Axis Fields'),
+						fieldtype: 'MultiSelect',
+						fieldname: 'y_axes',
 						options: y_fields,
-						description: __('Showing only Numeric fields from Report')
+						description: __('Showing only Numeric fields from Report'),
+						default: defaults.y_fields
+					},
+					{
+						label: __('Chart Type'),
+						fieldtype: 'Select',
+						options: ['Bar', 'Line', 'Scatter', 'Pie', 'Percentage'],
+						fieldname: 'chart_type',
+						default: toTitle(defaults.chart_type || 'Bar')
 					}
 				],
-				primary_action: ({ y_axis }) => {
-					if (y_fields.includes(y_axis)) {
-						const data = this.data.map(d => d[y_axis]);
-						const args = {
-							field: y_axis,
-							dataset: {
-								label: y_axis,
-								values: data
-							}
-						}
-						resolve(args);
-						dialog.hide();
-					}
+				primary_action: ({ x_axis, y_axes, chart_type }) => {
+					y_axes = y_axes.split(',').map(d => d.trim()).filter(Boolean);
+
+					if (!(
+						y_axes.every(d => y_fields.includes(d))
+						&& x_fields.includes(x_axis)
+					)) return;
+
+					const args = this.get_chart_args(x_axis, y_axes, chart_type);
+					this.chart_args = args;
+					resolve(args);
+					dialog.hide();
 				}
 			});
 
 			dialog.show();
 		});
+	}
+
+	get_chart_args(x_axis, y_axes, chart_type) {
+		const labels = this.data.map(d => {
+			// HACK: labels need strings,
+			// so we return objects that
+			// look like strings and also
+			// monkey patch the doc
+			// javascript is awesome
+			return {
+				doc: d,
+				toString() {
+					return d[x_axis];
+				},
+				slice: String.prototype.slice
+			};
+		});
+
+		return {
+			chart_type: chart_type.toLowerCase(),
+			x_field: x_axis,
+			y_fields: y_axes,
+			labels: labels,
+			datasets: y_axes.map(y_axis => ({
+				name: frappe.meta.get_docfield(this.doctype, y_axis).label,
+				values: this.data.map(d => ({
+					doc: d,
+					field: y_axis,
+					toString() {
+						return d[y_axis];
+					},
+					slice: String.prototype.slice
+				}))
+			}))
+		};
 	}
 
 	get_editing_object(colIndex, rowIndex, value, parent) {
@@ -402,20 +489,15 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 	}
 
 	get_data(values) {
-		return {
-			columns: this.columns,
-			rows: this.build_rows(values)
-		};
+		return this.build_rows(values);
 	}
 
 	set_fields() {
 		if (this.report_name && this.report_doc.json.fields) {
 			this.fields = this.report_doc.json.fields;
 			return;
-		}
-
-		// get from user_settings
-		else if (this.view_user_settings.fields) {
+		} else if (this.view_user_settings.fields) {
+			// get from user_settings
 			this.fields = this.view_user_settings.fields;
 			return;
 		}
@@ -655,7 +737,7 @@ frappe.views.ReportView = class ReportView extends frappe.views.ListView {
 			docfield: docfield,
 			name: title,
 			content: title,
-			width: (docfield ? cint(docfield.width) : 120) || 120,
+			width: (docfield ? cint(docfield.width) : null) || null,
 			editable: editable
 		};
 	}

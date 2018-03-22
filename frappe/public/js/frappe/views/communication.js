@@ -198,11 +198,12 @@ frappe.views.CommunicationComposer = Class.extend({
 				method: 'frappe.email.doctype.standard_reply.standard_reply.get_standard_reply',
 				args: {
 					template_name: standard_reply,
-					doc: me.frm.doc
+					doc: me.frm.doc,
+					_lang: me.dialog.get_value("language_sel")
 				},
 				callback: function(r) {
 					prepend_reply(r.message);
-				}
+				},
 			});
 		}
 	},
@@ -505,7 +506,8 @@ frappe.views.CommunicationComposer = Class.extend({
 				sender_full_name: form_values.sender?frappe.user.full_name():undefined,
 				attachments: selected_attachments,
 				_lang : me.lang_code,
-				read_receipt:form_values.send_read_receipt
+				read_receipt:form_values.send_read_receipt,
+				print_letterhead: me.is_print_letterhead_checked(),
 			},
 			btn: btn,
 			callback: function(r) {
@@ -549,6 +551,15 @@ frappe.views.CommunicationComposer = Class.extend({
 				}
 			}
 		});
+	},
+
+	is_print_letterhead_checked: function() {
+		if (this.frm && $(this.frm.wrapper).find('.form-print-wrapper').is(':visible')){
+			return $(this.frm.wrapper).find('.print-letterhead').prop('checked');
+		} else {
+			return (frappe.model.get_doc(":Print Settings", "Print Settings") ||
+				{ with_letterhead: 1 }).with_letterhead ? true : false;
+		}
 	},
 
 	setup_earlier_reply: function() {
