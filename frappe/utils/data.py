@@ -26,9 +26,9 @@ def getdate(string_date=None):
 	"""
 		 Coverts string date (yyyy-mm-dd) to datetime.date object
 	"""
+
 	if not string_date:
 		return get_datetime().date()
-
 	if isinstance(string_date, datetime.datetime):
 		return string_date.date()
 
@@ -38,7 +38,6 @@ def getdate(string_date=None):
 	# dateutil parser does not agree with dates like 0000-00-00
 	if not string_date or string_date=="0000-00-00":
 		return None
-
 	return parser.parse(string_date).date()
 
 def get_datetime(datetime_str=None):
@@ -199,7 +198,6 @@ def get_time(time_str):
 def get_datetime_str(datetime_obj):
 	if isinstance(datetime_obj, string_types):
 		datetime_obj = get_datetime(datetime_obj)
-
 	return datetime_obj.strftime(DATETIME_FORMAT)
 
 def get_user_format():
@@ -226,11 +224,11 @@ def formatdate(string_date=None, format_string=None):
 	date = getdate(string_date)
 	if not format_string:
 		format_string = get_user_format().replace("mm", "MM")
-
 	try:
 		formatted_date = babel.dates.format_date(date, format_string, locale=(frappe.local.lang or "").replace("-", "_"))
 	except UnknownLocaleError:
-		formatted_date = date.strftime("%Y-%m-%d")
+		format_string = format_string.replace("MM", "%m").replace("dd", "%d").replace("yyyy", "%Y")
+		formatted_date = date.strftime(format_string)
 	return formatted_date
 
 def format_time(txt):
@@ -372,9 +370,14 @@ def fmt_money(amount, precision=None, currency=None):
 	# 40,000.00000 -> 40,000.00
 	# 40,000.23000 -> 40,000.23
 
+	if isinstance(amount, string_types):
+		amount = flt(amount, precision)
+
 	if decimal_str:
-		parts = str(amount).split(decimal_str)
-		decimals = parts[1] if len(parts) > 1 else ''
+		decimals_after = str(round(amount % 1, precision))
+		parts = decimals_after.split('.')
+		parts = parts[1] if len(parts) > 1 else parts[0]
+		decimals = parts
 		if precision > 2:
 			if len(decimals) < 3:
 				if currency:
@@ -386,6 +389,7 @@ def fmt_money(amount, precision=None, currency=None):
 				precision = len(decimals)
 
 	amount = '%.*f' % (precision, round(flt(amount), precision))
+
 	if amount.find('.') == -1:
 		decimals = ''
 	else:
@@ -413,7 +417,8 @@ def fmt_money(amount, precision=None, currency=None):
 	parts.reverse()
 
 	amount = comma_str.join(parts) + ((precision and decimal_str) and (decimal_str + decimals) or "")
-	amount = minus + amount
+	if amount != '0':
+		amount = minus + amount
 
 	if currency and frappe.defaults.get_global_default("hide_currency_symbol") != "Yes":
 		symbol = frappe.db.get_value("Currency", currency, "symbol") or currency

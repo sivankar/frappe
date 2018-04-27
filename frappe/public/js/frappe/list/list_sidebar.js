@@ -372,10 +372,10 @@ frappe.views.ListSidebar = Class.extend({
 				<a><i class="octicon octicon-x pull-right close" style="margin-top: 10px;"></i></a>
 				<h5>Go Premium</h5>
 				<p>Upgrade to a premium plan with more users, storage and priority support.</p>
-				<button class="btn btn-xs btn-default" style="margin-bottom: 10px;"> Renew / Upgrade </button>
+				<button class="btn btn-xs btn-default btn-upgrade" style="margin-bottom: 10px;"> Renew / Upgrade </button>
 				</div>`).appendTo(upgrade_list);
 
-			upgrade_box.find('.btn-primary').on('click', () => {
+			upgrade_box.find('.btn-upgrade').on('click', () => {
 				frappe.set_route('usage-info');
 			});
 
@@ -468,12 +468,19 @@ frappe.views.ListSidebar = Class.extend({
 			.on("click", ".stat-link", function() {
 				var fieldname = $(this).attr('data-field');
 				var label = $(this).attr('data-label');
-				if (label == "No Tags") {
-					me.list_view.filter_list.add_filter(me.list_view.doctype, fieldname, 'not like', '%,%');
-					me.list_view.run();
-				} else {
-					me.set_filter(fieldname, label);
+				var condition = "like";
+				var existing = me.list_view.filter_area.filter_list.get_filter(fieldname);
+				if(existing) {
+					existing.remove();
 				}
+				if (label == "No Tags") {
+					label = "%,%";
+					condition = "not like";
+				}
+				me.list_view.filter_area.filter_list.add_filter(me.list_view.doctype, fieldname, condition, label)
+					.then(function() {
+						me.list_view.refresh();
+					});
 			})
 			.insertBefore(this.sidebar.find(".close-sidebar-button"));
 	},
