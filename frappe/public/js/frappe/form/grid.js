@@ -91,6 +91,23 @@ frappe.ui.form.Grid = Class.extend({
 			me.refresh_remove_rows_button();
 		});
 
+		this.wrapper.on('click', '.grid-static-col', function(e) {
+			var $sort = $(this);
+			if($sort.parents('.grid-heading-row:first').length!==0) {
+				var sortAttr = $sort.attr('data-fieldname');
+				(me.frm.doc[me.df.fieldname] || []).sort(function(a, b) {
+					if (a[sortAttr] < b[sortAttr]){ return -1 }
+				  else if ( a[sortAttr] > b[sortAttr]){ return 1 }
+				  return 1;
+				});
+				let idx = 1
+				me.frm.doc[me.df.fieldname].forEach(row => {
+					row.idx = idx++;
+				});
+				me.refresh(true);
+			}
+		});
+
 		this.remove_rows_button.on('click', function() {
 			var dirty = false;
 
