@@ -68,6 +68,7 @@ frappe.ui.form.Grid = Class.extend({
 
 		this.setup_allow_bulk_edit();
 		this.setup_check();
+		this.setup_child_table_sort();
 		if(this.df.on_setup) {
 			this.df.on_setup(this);
 		}
@@ -91,23 +92,6 @@ frappe.ui.form.Grid = Class.extend({
 				me.grid_rows_by_docname[docname].select($check.prop('checked'));
 			}
 			me.refresh_remove_rows_button();
-		});
-
-		this.wrapper.on('click', '.grid-static-col', function(e) {
-			var $sort = $(this);
-			if($sort.parents('.grid-heading-row:first').length!==0) {
-				var sortAttr = $sort.attr('data-fieldname');
-				(me.frm.doc[me.df.fieldname] || []).sort(function(a, b) {
-					if (a[sortAttr] < b[sortAttr]){ return -1 }
-				  else if ( a[sortAttr] > b[sortAttr]){ return 1 }
-				  return 1;
-				});
-				let idx = 1
-				me.frm.doc[me.df.fieldname].forEach(row => {
-					row.idx = idx++;
-				});
-				me.refresh(true);
-			}
 		});
 
 		this.remove_rows_button.on('click', function() {
@@ -134,6 +118,28 @@ frappe.ui.form.Grid = Class.extend({
 			frappe.run_serially(tasks);
 		});
 	},
+
+	setup_child_table_sort: function() {
+		var me = this;
+
+		this.wrapper.on('click', '.grid-static-col', function(e) {
+			var $sort = $(this);
+			if($sort.parents('.grid-heading-row:first').length!==0) {
+				var sortAttr = $sort.attr('data-fieldname');
+				(me.frm.doc[me.df.fieldname] || []).sort(function(a, b) {
+					if (a[sortAttr] < b[sortAttr]){ return -1 }
+					else if ( a[sortAttr] > b[sortAttr]){ return 1 }
+					return 1;
+				});
+				let idx = 1
+				me.frm.doc[me.df.fieldname].forEach(row => {
+					row.idx = idx++;
+				});
+				me.refresh(true);
+			}
+		});
+	},
+
 	select_row: function(name) {
 		this.grid_rows_by_docname[name].select();
 	},
